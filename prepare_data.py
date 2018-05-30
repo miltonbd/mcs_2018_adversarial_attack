@@ -12,6 +12,7 @@ from PIL import Image
 from tqdm import tqdm
 from torchvision import transforms
 import glob
+from sklearn.model_selection import train_test_split
 
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
@@ -31,16 +32,23 @@ parser.add_argument('--datalist_type',
                      required=True,
                      type=str,
                      help='(train|val)')
+
+parser.add_argument('--size',
+                    type=int,
+                    help='Total size of data',
+                    default=10000)
+
+parser.add_argument('--batch_size',
+                    type=int,
+                    help='mini-batch size',
+                    default=100)
 '''
 parser.add_argument('--save_path',
                     required=True,
                     type=str,
                     help='path to save descriptors (.npy)')
 
-parser.add_argument('--batch_size', 
-                    type=int, 
-                    help='mini-batch size',
-                    default=16)
+
 '''
 parser.add_argument('--gpu_id',
                     type=int,
@@ -55,11 +63,26 @@ def chunks(arr, chunk_size):
         yield arr[i:i+chunk_size]
 '''
 
+def save_train_val_fold(img_list,descriptors,datalist_type):
+    im_list_df = pd.DataFrame(img_list)
+    # save directory/img_name.jpg
+    im_list_df[0] = im_list_df[0].apply(lambda x: '/'.join(x.split('/')[-2:]))
+
+    im_path = os.path.join(args.datalist_path,
+                           'im_{type}.txt'.format(type=datalist_type))
+    im_list_df.to_csv(im_path, header=False, index=False)
+
+    at_path = os.path.join(args.datalist_path,
+                           'at_{type}.npy'.format(type=datalist_type))
+    np.save(at_path,descriptors)
+
 def main(args):
     net = MCS2018.Predictor(args.gpu_id)
 
     #img list is needed for descriptors order
-    img_list = glob.glob(os.path.join(args.root, '*.jpg'))[:1000]
+    print ("Total count:{}".format(args.size));
+
+    img_list = glob.glob(os.path.join(args.root, '*.jpg'))[:args.size]
     #img_list = pd.read_csv(args.datalist).path.values
     descriptors = np.ones((len(img_list),512), dtype=np.float32)
 
@@ -90,16 +113,14 @@ def main(args):
     if not os.path.isdir(args.datalist_path):
         os.makedirs(args.datalist_path)
 
-    im_list_df = pd.DataFrame(img_list)
-    # save directory/img_name.jpg
-    im_list_df[0] = im_list_df[0].apply(lambda x: '/'.join(x.split('/')[-2:]))
-    im_path = os.path.join(args.datalist_path, 
-                           'im_{type}.txt'.format(type=args.datalist_type))
-    im_list_df.to_csv(im_path, header=False, index=False)
+    train_end=int(args.size * .7)
+    print(type(train_end))
+    print(descriptors.shape)
+    train_imgs=img_list[:train_end]
+    train_desc=descriptors[:train_end,:]
+    save_train_val_fold(train_imgs,train_desc, 'train')
+    save_train_val_fold(img_list[train_end:],descriptors[train_end:,:],'val')
 
-    at_path = os.path.join(args.datalist_path, 
-                           'at_{type}.npy'.format(type=args.datalist_type))
-    np.save(at_path,descriptors)
 
 if __name__ == '__main__':
     main(args)

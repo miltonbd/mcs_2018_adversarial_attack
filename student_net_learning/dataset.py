@@ -18,6 +18,7 @@ def np_loader(path):
 def build_dataset_lists(list_path,split):
     im_list = os.path.join(list_path, 'im_'+split+'.txt')
     at_list = os.path.join(list_path, 'at_'+split+'.npy')
+    print(os.path.abspath(im_list))
     images = pd.read_csv(im_list, header=None, names=['impath'])
     targets = np.load(at_list)
     return images.impath.values,targets

@@ -8,6 +8,13 @@ from __future__ import print_function
 import os
 import argparse
 import random
+import sys
+sys.path.append('/media/milton/ssd1/research/ai-artist')
+
+from utils.functions import progress_bar
+
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 import numpy as np
 import torch
@@ -22,7 +29,9 @@ import PIL
 
 from models import *
 from dataset import ImageListDataset
-from utils import progress_bar
+# from utils import progress_bar
+
+from torchsummary import summary
 
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225] 
@@ -57,9 +66,9 @@ parser.add_argument('--datalist',
 parser.add_argument('--batch_size', 
                     type=int, 
                     help='mini-batch size',
-                    default=16)
+                    default=200)
 parser.add_argument('--name',
-                    required=True,
+                    default='ResNet50',
                     type=str, 
                     help='session name')
 parser.add_argument('--log_dir_path',
@@ -67,11 +76,12 @@ parser.add_argument('--log_dir_path',
                     type=str, 
                     help='log directory path')
 parser.add_argument('--epochs',
-                    required=True,
+                    default=10,
                     type=int,
                     help='number of epochs')
 parser.add_argument('--cuda',
-                    action='store_true', 
+                    type=int,
+                    default=1,
                     help='use CUDA')
 parser.add_argument('--model_name', 
                     type=str, 
@@ -134,9 +144,12 @@ def train(epoch):
                        '{batch},{loss:.3f}\n'.format(epoch=epoch, 
                                                      batch=batch_idx,
                                                      loss=curr_batch_loss))
-        progress_bar(batch_idx, 
-                     len(trainloader),
-                     'Loss: {l:.3f}'.format(l = train_loss/(batch_idx+1)))
+        progress_bar(batch_idx,
+                      len(trainloader),
+                      'Loss: {l:.3f}'.format(l = train_loss/(batch_idx+1)))
+        # progress_bar(batch_idx,
+        #              len(trainloader),
+        #              'Loss: {l:.3f}'.format(l = train_loss/(batch_idx+1)))
 
 def validation(epoch):
     
@@ -284,7 +297,8 @@ def main():
         optimizer = optim.Adadelta(net.parameters(), lr=args.lr)
     else:
         optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-    
+
+
     # Load on GPU
     if args.cuda:
         print ('==> Using CUDA')
@@ -306,8 +320,8 @@ def main():
     log_file = open(log_file_path, 'w')
     log_file.write('type,epoch,batch,loss,acc\n')
 
-    print ('==> Model')
-    print(net)
+    print('==> Model')
+    summary(net, (3, 112, 112))
 
     try:
         for epoch in range(start_epoch, args.epochs):
