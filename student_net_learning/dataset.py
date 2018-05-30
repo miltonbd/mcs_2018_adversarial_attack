@@ -4,6 +4,7 @@ import os.path
 
 import numpy as np
 import pandas as pd
+import torch
 import torch.utils.data as data
 from PIL import Image
 
@@ -53,7 +54,7 @@ class ImageListDataset(data.Dataset):
         img = self.loader(path)
         if self.transform is not None:
             img = self.transform(img)
-
+        img = img.type(torch.FloatTensor)
         return img, target
 
     def __len__(self):
