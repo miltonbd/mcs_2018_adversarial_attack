@@ -1,9 +1,18 @@
 '''
 Prepare data for student model learning
 '''
-import  MCS2018
 
 import os
+# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+import  MCS2018
+# import  MCS2018 as   MCS20181
+# import  MCS2018 as   MCS20182
+# import  MCS2018 as   MCS20183
+# import  MCS2018 as   MCS20184
+
+# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import argparse
 
 import numpy as np
@@ -36,7 +45,7 @@ parser.add_argument('--datalist_type',
 parser.add_argument('--size',
                     type=int,
                     help='Total size of data',
-                    default=10000)
+                    default=1000000)
 
 parser.add_argument('--batch_size',
                     type=int,
@@ -76,9 +85,14 @@ def save_train_val_fold(img_list,descriptors,datalist_type):
                            'at_{type}.npy'.format(type=datalist_type))
     np.save(at_path,descriptors)
 
-def main(args):
-    net = MCS2018.Predictor(args.gpu_id)
 
+
+
+import threading
+import time
+def main(args):
+    # net = MCS2018.Predictor(0)
+    net1=MCS2018.Predictor(1)
     #img list is needed for descriptors order
     print ("Total count:{}".format(args.size));
 
@@ -86,19 +100,30 @@ def main(args):
     #img_list = pd.read_csv(args.datalist).path.values
     descriptors = np.ones((len(img_list),512), dtype=np.float32)
 
-    preprocessing = transforms.Compose([
-                transforms.CenterCrop(224),
-                transforms.Scale(112),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=MEAN, std=STD),
-                ])
+    total_steps=len(img_list)
 
-    for idx, img_name in tqdm(enumerate(img_list), total=len(img_list)):
+    def make_data(img_name, idx):
+        preprocessing = transforms.Compose([
+            transforms.CenterCrop(224),
+            transforms.Scale(112),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=MEAN, std=STD),
+        ])
+
         img = Image.open(img_name)
         img_arr = preprocessing(img).unsqueeze(0).numpy()
-        res = net.submit(img_arr).squeeze()
+        # if idx%2==0:
+        #     res = net.submit(img_arr).squeeze()
+        # else:
+        res = net1.submit(img_arr).squeeze()
+
         descriptors[idx] = res
 
+    for idx,img_name in tqdm(enumerate(img_list), total=total_steps):
+        t=threading.Thread(target=make_data, args=(img_name,idx))
+        t.start()
+        # t.join()
+        time.sleep(.00101)
     '''
     for idx, img_names in tqdm(enumerate(chunks(img_list, args.batch_size))):
         img_arr = np.ones((len(img_names), 3, 112, 112), dtype=np.float32)
@@ -113,7 +138,7 @@ def main(args):
     if not os.path.isdir(args.datalist_path):
         os.makedirs(args.datalist_path)
 
-    train_end=int(args.size * .7)
+    train_end=int(args.size * .8)
     print(type(train_end))
     print(descriptors.shape)
     train_imgs=img_list[:train_end]

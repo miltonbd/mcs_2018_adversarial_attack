@@ -10,19 +10,18 @@ import argparse
 import random
 import sys
 sys.path.append('/media/milton/ssd1/research/ai-artist')
-
 from utils.functions import progress_bar
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-
+from tensorboardX import SummaryWriter
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
-import torchvision.transforms as transforms
+import torchvision.transforms as transformsd
 from torch.autograd import Variable
 from PIL import Image
 import PIL
@@ -37,60 +36,7 @@ MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225] 
 
 #torch.set_default_tensor_type('torch.FloatTensor')
-
-parser = argparse.ArgumentParser(description='PyTorch student network training')
-
-parser.add_argument('--lr',
-                    default=0.001, 
-                    type=float, 
-                    help='learning rate')
-parser.add_argument('--resume',
-                    action='store_true', 
-                    help='resume from checkpoint')
-parser.add_argument('--optimizer',
-                    type=str, 
-                    help='optimizer type', 
-                    default='adam')
-parser.add_argument('--criterion',
-                    type=str, 
-                    help='criterion', 
-                    default='MSE')
-parser.add_argument('--root',
-                    default='../data/',
-                    type=str, 
-                    help='data root path')
-parser.add_argument('--datalist', 
-                    default='../data/datalist/',
-                    type=str, 
-                    help='datalist path')
-parser.add_argument('--batch_size', 
-                    type=int, 
-                    help='mini-batch size',
-                    default=200)
-parser.add_argument('--name',
-                    default='ResNet50',
-                    type=str, 
-                    help='session name')
-parser.add_argument('--log_dir_path',
-                    default='./logs',
-                    type=str, 
-                    help='log directory path')
-parser.add_argument('--epochs',
-                    default=10,
-                    type=int,
-                    help='number of epochs')
-parser.add_argument('--cuda',
-                    type=int,
-                    default=1,
-                    help='use CUDA')
-parser.add_argument('--model_name', 
-                    type=str, 
-                    help='model name', 
-                    default='ResNet18')
-parser.add_argument('--down_epoch', 
-                    type=int, 
-                    help='epoch number for lr * 1e-1', 
-                    default=30)
+from arguments import *
 args = parser.parse_args()
 
 
@@ -118,9 +64,8 @@ def train(epoch):
     print('\nEpoch: %d' % epoch)
     net.train()
     train_loss = 0
-    correct = 0
     total = 0
-
+    total_count=len(trainloader)
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs, targets.squeeze()
         adjust_learning_rate(optimizer, epoch, args)
@@ -139,17 +84,14 @@ def train(epoch):
         curr_batch_loss = loss.data[0]
         train_loss += curr_batch_loss
         total += targets.size(0)
-
-        log_file.write('train,{epoch},'\
-                       '{batch},{loss:.3f}\n'.format(epoch=epoch, 
-                                                     batch=batch_idx,
-                                                     loss=curr_batch_loss))
+        step_loss=train_loss / (batch_idx + 1)
+        log_file.add_scalar('Train Step Loss',step_loss, epoch*total_count+batch_idx)
         progress_bar(batch_idx,
-                      len(trainloader),
-                      'Loss: {l:.3f}'.format(l = train_loss/(batch_idx+1)))
-        # progress_bar(batch_idx,
-        #              len(trainloader),
-        #              'Loss: {l:.3f}'.format(l = train_loss/(batch_idx+1)))
+                      total_count,
+                      'Train Loss step: {l:.3f}'.format(l=step_loss))
+
+    log_file.add_scalar('train loss',train_loss,epoch)
+
 
 def validation(epoch):
     
@@ -174,14 +116,10 @@ def validation(epoch):
 
         curr_batch_loss = loss.data[0]
         val_loss += curr_batch_loss
-
-        log_file.write('val,{epoch},'\
-                       '{batch},{loss:.5f}\n'.format(epoch=epoch, 
-                                                     batch=batch_idx,
-                                                     loss=curr_batch_loss))
         progress_bar(batch_idx, 
                      len(valloader), 
-                     'Loss: {l:.3f}'.format(l = val_loss/(batch_idx+1)))
+                     'Validation Loss Step: {l:.3f}'.format(l = val_loss/(batch_idx+1)))
+    log_file.add_scalar('Validation Loss',val_loss, epoch)
     val_loss = val_loss/(batch_idx+1)
     if val_loss < best_loss:
         print('Saving..')
@@ -263,15 +201,29 @@ def main():
     # Create model
     net = None
     if args.model_name == 'ResNet18':
+        print('Loading ResNet18')
         net = ResNet18()
     elif args.model_name == 'ResNet34':
+        print('Loading ResNet34')
         net = ResNet34()
     elif args.model_name == 'ResNet50':
-        net = ResNet50()
+        # print('Loading pnasnet5large')
+        # from student_net_learning.pretrainedmodels.models.pnasnet import pnasnet5large
+        # net = pnasnet5large()
+        # net = dpn131(pretrained=True)
+        print("ResNET152")
+        from classification.models.pytorch.resnet import resnet152
+        net=resnet152(pretrained=True)
     elif args.model_name == 'DenseNet':
+        print('Loading DenseNet121')
         net = DenseNet121()
     elif args.model_name == 'VGG11':
+        print('Loading VGG11')
         net = VGG('VGG11')
+    elif args.model_name == 'VGG19_BN':
+        from student_net_learning.pretrainedmodels.models.pnasnet import pnasnet5large
+        print('Loading VGG19_BN')
+        net = pnasnet5large()
 
     print('==> Building model..')
 
@@ -290,14 +242,6 @@ def main():
     else:
         criterion = None # Add your criterion
 
-    # Choosing of optimizer
-    if args.optimizer == 'adam':
-        optimizer = optim.Adam(net.parameters(), lr=args.lr)
-    elif args.optimizer == 'adadelta':
-        optimizer = optim.Adadelta(net.parameters(), lr=args.lr)
-    else:
-        optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-
 
     # Load on GPU
     if args.cuda:
@@ -315,13 +259,36 @@ def main():
     
     if not os.path.isdir(args.log_dir_path):
        os.makedirs(args.log_dir_path)
-    log_file_path = os.path.join(args.log_dir_path, args.name + '.log')
+    log_file_path = os.path.join(args.log_dir_path, args.name )
     # logger file openning
-    log_file = open(log_file_path, 'w')
-    log_file.write('type,epoch,batch,loss,acc\n')
+    log_file = SummaryWriter(log_file_path)
+
+    total=0
+
+    for name, child in net.named_children():
+        total+=1
+    print("Total Layer:{}".format(total))
+
+    ct = total
+
+    for name2, params in child.named_parameters():
+        if ct < 1:
+            params.requires_grad = True
+        else:
+            params.requires_grad=False
+        ct-=1
 
     print('==> Model')
     summary(net, (3, 112, 112))
+
+    # Choosing of optimizer
+    if args.optimizer == 'adam':
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.lr,eps=1)
+    elif args.optimizer == 'adadelta':
+        optimizer = optim.Adadelta(net.parameters(), lr=args.lr)
+    else:
+        optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+
 
     try:
         for epoch in range(start_epoch, args.epochs):
@@ -330,10 +297,8 @@ def main():
         print ('==> Best loss: {0:.5f}'.format(best_loss))
     except Exception as e:
         print (e.message)
-        log_file.write(e.message)
     finally:
-        log_file.close()
-
+        pass
 if __name__ == '__main__':
     net = None
     trainloader = None
