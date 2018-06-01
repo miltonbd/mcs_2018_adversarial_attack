@@ -129,7 +129,7 @@ def validation(epoch):
             'epoch': epoch,
             'arguments': args
         }
-        session_checkpoint = 'checkpoint/{name}/'.format(name=args.name)
+        session_checkpoint = 'student_net_learning/checkpoint/{name}/'.format(name=args.model_name)
         if not os.path.isdir(session_checkpoint):
             os.makedirs(session_checkpoint)
         torch.save(state, session_checkpoint + 'best_model_chkpt.t7')
