@@ -48,10 +48,6 @@ def adjust_learning_rate(optimizer, epoch, args):
 
 
 def train(epoch):
-    '''
-    Train function for each epoch
-    '''
-
     global net
     global trainloader
     global args
@@ -83,7 +79,7 @@ def train(epoch):
         curr_batch_loss = loss.data[0]
         train_loss += curr_batch_loss
         total += targets.size(0)
-        step_loss=train_loss / (batch_idx + 1)
+        step_loss=curr_batch_loss
         log_file.add_scalar('Train Step Loss',step_loss, epoch*total_count+batch_idx)
         progress_bar(batch_idx,
                       total_count,
@@ -243,7 +239,7 @@ def main():
 
     # Choosing of optimizer
     if args.optimizer == 'adam':
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.lr)
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), 0.001)
     elif args.optimizer == 'adadelta':
         optimizer = optim.Adadelta(net.parameters(), lr=args.lr)
     else:
