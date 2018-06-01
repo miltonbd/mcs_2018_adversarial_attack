@@ -1,7 +1,7 @@
 import argparse
 parser = argparse.ArgumentParser(description='PyTorch student network training')
 
-parser.add_argument('--lr',default=0.001,
+parser.add_argument('--lr',default=0.0001,
                     type=float,
                     help='learning rate')
 parser.add_argument('--resume',
@@ -27,10 +27,7 @@ parser.add_argument('--batch_size',
                     type=int,
                     help='mini-batch size',
                     default=150)
-parser.add_argument('--name',
-                    default='VGG19_BN',
-                    type=str,
-                    help='session name')
+
 parser.add_argument('--log_dir_path',
                     default='./student_net_learning/logs',
                     type=str,
@@ -46,7 +43,7 @@ parser.add_argument('--cuda',
 parser.add_argument('--model_name',
                     type=str,
                     help='model name',
-                    default='ResNet50')
+                    default='ResNet152')
 parser.add_argument('--down_epoch',
                     type=int,
                     help='epoch number for lr * 1e-1',

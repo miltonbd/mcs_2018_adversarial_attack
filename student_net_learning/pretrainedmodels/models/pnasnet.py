@@ -398,3 +398,15 @@ def pnasnet5large(num_classes=1000, pretrained='imagenet'):
     else:
         model = PNASNet5Large(num_classes=num_classes)
     return model
+
+from torch.autograd import Variable
+import torch
+
+
+def test():
+    net = pnasnet5large()
+    net.cuda()
+    y = net(Variable(torch.randn(32,3,112,112)).cuda())
+    print(y.size())
+
+test()

@@ -7,6 +7,8 @@ import pandas as pd
 import torch
 import torch.utils.data as data
 from PIL import Image
+from skimage import io
+import torch
 
 def default_loader(path):
     with open(path, 'rb') as f:
@@ -21,7 +23,16 @@ def build_dataset_lists(list_path,split):
     at_list = os.path.join(list_path, 'at_'+split+'.npy')
     print(os.path.abspath(im_list))
     images = pd.read_csv(im_list, header=None, names=['impath'])
-    targets = np.load(at_list)
+    targets = np.load(at_list).astype(np.float32)
+
+    if split=='train':
+        images = images[:50000]
+        targets = targets[:50000, :]
+    else:
+        images = images[:10000]
+        targets = targets[:10000, :]
+
+
     return images.impath.values,targets
 
 class ImageListDataset(data.Dataset):
@@ -36,6 +47,7 @@ class ImageListDataset(data.Dataset):
                  transform=None, loader=default_loader):
         
         images, targets = build_dataset_lists(list_path,split)
+
         self.root = root
         self.images = root + images
         self.targets = targets
@@ -51,10 +63,9 @@ class ImageListDataset(data.Dataset):
         """
         path = self.images[index]
         target = self.targets[index]
-        img = self.loader(path)
+        img =Image.open(path)
         if self.transform is not None:
             img = self.transform(img)
-        img = img.type(torch.FloatTensor)
         return img, target
 
     def __len__(self):

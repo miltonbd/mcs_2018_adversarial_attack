@@ -21,7 +21,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
-import torchvision.transforms as transformsd
+import torchvision.transforms as transforms
 from torch.autograd import Variable
 from PIL import Image
 import PIL
@@ -31,9 +31,7 @@ from dataset import ImageListDataset
 # from utils import progress_bar
 
 from torchsummary import summary
-
-MEAN = [0.485, 0.456, 0.406]
-STD = [0.229, 0.224, 0.225] 
+from student_net_learning.data_loader import *
 
 #torch.set_default_tensor_type('torch.FloatTensor')
 from arguments import *
@@ -70,11 +68,12 @@ def train(epoch):
         inputs, targets = inputs, targets.squeeze()
         adjust_learning_rate(optimizer, epoch, args)
         if args.cuda:
-            inputs, targets = inputs.cuda(async=True), targets.cuda(async=True)
+            inputs, targets = inputs.type(torch.FloatTensor).cuda(async=True), targets.type(torch.FloatTensor).cuda(async=True)
 
         optimizer.zero_grad()
         inputs = Variable(inputs, requires_grad=True)
         targets = Variable(targets, requires_grad=False)
+
         outputs = net(inputs)
 
         loss = criterion(outputs, targets)
@@ -148,55 +147,9 @@ def main():
     start_epoch = 0
     best_loss = np.finfo(np.float32).max
 
-    #augmentation
-    random_rotate_func = lambda x: x.rotate(random.randint(-15,15),
-                                            resample=Image.BICUBIC)
-    random_scale_func = lambda x: transforms.Scale(int(random.uniform(1.0,1.4)\
-                                                   * max(x.size)))(x)
-    gaus_blur_func = lambda x: x.filter(PIL.ImageFilter.GaussianBlur(radius=1))
-    median_blur_func = lambda x: x.filter(PIL.ImageFilter.MedianFilter(size=3))
+    trainloader, valloader = get_data(args)
 
-    #train preprocessing
-    transform_train = transforms.Compose([
-        transforms.Lambda(lambd=random_rotate_func),
-        transforms.CenterCrop(224),
-        transforms.Scale((112,112)),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),  
-        transforms.Normalize(mean=MEAN, std=STD),
-    ])
-
-    #validation preprocessing
-    transform_val = transforms.Compose([
-        transforms.CenterCrop(224),
-        transforms.Scale((112,112)),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=MEAN, std=STD)
-    ])
-
-    print('==> Preparing data..')
-    trainset = ImageListDataset(root=args.root, 
-                                list_path=args.datalist, 
-                                split='train', 
-                                transform=transform_train)
-
-    trainloader = torch.utils.data.DataLoader(trainset, 
-                                              batch_size=args.batch_size, 
-                                              shuffle=True, 
-                                              num_workers=8, 
-                                              pin_memory=True)
-
-    valset = ImageListDataset(root=args.root, 
-                               list_path=args.datalist, 
-                               split='val', 
-                               transform=transform_val)
-
-    valloader = torch.utils.data.DataLoader(valset, 
-                                             batch_size=args.batch_size, 
-                                             shuffle=False, 
-                                             num_workers=8, 
-                                             pin_memory=True)
+    print("Training : {}, Validation:{}".format(len(trainloader),len(valloader)))
 
     # Create model
     net = None
@@ -214,9 +167,16 @@ def main():
         print("ResNET152")
         from classification.models.pytorch.resnet import resnet152
         net=resnet152(pretrained=True)
+
+    elif args.model_name == 'ResNet152':
+        print("ResNET152")
+        from classification.models.pytorch.resnet import resnet152
+        net = resnet152(pretrained=True)
+
     elif args.model_name == 'DenseNet':
+        from student_net_learning.models.densenet import densenet201
         print('Loading DenseNet121')
-        net = DenseNet121()
+        net =  densenet201(pretrained=True)
     elif args.model_name == 'VGG11':
         print('Loading VGG11')
         net = VGG('VGG11')
@@ -237,10 +197,10 @@ def main():
         start_epoch = checkpoint['epoch'] + 1
 
     # Choosing of criterion
-    if args.criterion == 'MSE':
-        criterion = nn.MSELoss()
-    else:
-        criterion = None # Add your criterion
+    # if args.criterion == 'MSE':
+    criterion = nn.BCEWithLogitsLoss()
+    # else:
+    #     criterion = None # Add your criterion
 
 
     # Load on GPU
@@ -259,7 +219,7 @@ def main():
     
     if not os.path.isdir(args.log_dir_path):
        os.makedirs(args.log_dir_path)
-    log_file_path = os.path.join(args.log_dir_path, args.name )
+    log_file_path = os.path.join(args.log_dir_path, args.model_name )
     # logger file openning
     log_file = SummaryWriter(log_file_path)
 
@@ -283,7 +243,7 @@ def main():
 
     # Choosing of optimizer
     if args.optimizer == 'adam':
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.lr,eps=1)
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.lr)
     elif args.optimizer == 'adadelta':
         optimizer = optim.Adadelta(net.parameters(), lr=args.lr)
     else:
