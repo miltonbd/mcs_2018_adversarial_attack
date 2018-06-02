@@ -1,3 +1,9 @@
+
+# coding: utf-8
+
+# In[40]:
+
+
 import foolbox
 import torch
 import numpy as np
@@ -33,7 +39,7 @@ torchmodel.cuda()
 
 torchmodel.eval()
 
-fmodel = foolbox.models.PyTorchModel(torchmodel, bounds=(0, 255), num_classes=512)
+fmodel = foolbox.models.PyTorchModel(torchmodel, bounds=(0, 1), num_classes=512)
 
 img_pairs = pd.read_csv("../data/pairs_list.csv")
 
@@ -45,8 +51,37 @@ def get_ssim(original_img,changed_img):
 
 from foolbox.attacks import LBFGSAttack
 from foolbox.criteria import TargetClass
-cr=TargetClass(11)
-attack = LBFGSAttack(fmodel,criterion=cr)
+
+
+# In[41]:
+
+
+# FGSM
+
+from foolbox.criteria import TargetClass
+
+target_class = 22
+criterion = TargetClass(target_class)
+attack = foolbox.attacks.FGSM(fmodel)
+
+
+# In[30]:
+
+
+#
+# from foolbox.criteria import TargetClass
+#
+# target_class = 22
+# criterion = TargetClass(target_class)
+# attack=foolbox.attacks.IterativeGradientSignAttack(fmodel, criterion=criterion)
+
+
+# In[ ]:
+
+
+
+import warnings
+warnings.filterwarnings("ignore")
 
 for idx in tqdm(img_pairs.index.values):
     pair_dict = {'source': img_pairs.loc[idx].source_imgs.split('|'),
@@ -56,42 +91,34 @@ for idx in tqdm(img_pairs.index.values):
     target_img=pair_dict['target'][0]
     original_image=scipy.misc.imread(source_img)
     image = scipy.misc.imresize(original_image, (112, 112)).astype(np.float32)
-    image=image.transpose(2,0,1)
+    image=image.transpose(2,0,1)/255
 
     label = np.argmax(fmodel.predictions(image))
-    attack = foolbox.attacks.FGSM(fmodel)
-    adversarial = attack(image, label=label, epsilons=[.001, 1])
+    adversarial = attack(image, label=label)
     label_after = np.argmax(fmodel.predictions(adversarial))
 
-    print("before: {}, after: {}, ssim:{}".format(label, label_after, get_ssim(image.transpose((1,2,0)),adversarial.transpose(1,2,0))))
+    print("\nbefore: {}\n after: {}\n ssim: {}".format(label, label_after, get_ssim(image.transpose((1,2,0)),adversarial.transpose(1,2,0))))
 
     break
-    # adversarial = attack(image,1)
 
-# print(np.sum(adversarial-image))
-# image=image1.transpose((2, 0, 1)).copy()
 
-#
+# In[24]:
+
+
 import matplotlib.pyplot as plt
 
 plt.figure()
 
 plt.subplot(1, 3, 1)
 plt.title('Original')
-plt.imshow(image.transpose((1,2,0)) / 255)  # division by 255 to convert [0, 255] to [0, 1]
+plt.imshow(image.transpose((1,2,0)))  # division by 255 to convert [0, 255] to [0, 1]
 plt.axis('off')
 
 adversarial1=adversarial.transpose((1,2,0))
 plt.subplot(1, 3, 2)
 plt.title('Adversarial')
-plt.imshow( adversarial1 / 255)  # division by 255 to convert [0, 255] to [0, 1]
+plt.imshow( adversarial1)  # division by 255 to convert [0, 255] to [0, 1]
 plt.axis('off')
-#
-# plt.subplot(1, 3, 3)
-# plt.title('Difference')
-# difference = image-adversarial
-# print(difference.sum())
-# plt.imshow(difference)
-# plt.axis('off')
 
 plt.show()
+
