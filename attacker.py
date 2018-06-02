@@ -1,7 +1,8 @@
 import os
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
 from attacker_model import *
+import foolbox
+
 
 class Attacker():
     '''
@@ -107,30 +108,32 @@ class Attacker():
                 attacked_img = changed_img
         return attacked_img
 
-    def IterativeFGSM(self, input_var, original_img):
+
+    def foolbox(self, input_var, original_img):
+        from foolbox.criteria import TargetClass
+        from foolbox.attacks import LBFGSAttack
+
+        target_class = 22
+        criterion = TargetClass(target_class)
+        fmodel = foolbox.models.PyTorchModel(self.model, bounds=(0, 255), num_classes=512)
+
         attacked_img = original_img
-        for iter_number in tqdm(range(self.max_iter)):
-            adv_noise = torch.zeros((3, 112, 112))
+        for target_descriptor in self.target_descriptors:
 
-            adv_noise = adv_noise.cuda(async=True)
+            attack = LBFGSAttack(fmodel, criterion)
 
-            for target_descriptor in self.target_descriptors:
-                target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
-                                      requires_grad=False)
+            image = input_var.data.squeeze(0).cpu().numpy()
+            label = np.argmax(fmodel.predictions(image))
 
-                input_var.grad = None
-                out = self.model(input_var)
-                calc_loss = self.loss(out, target_out)
-                calc_loss.backward()
-                noise = self.eps * torch.sign(input_var.grad.data).squeeze()
-                adv_noise = adv_noise + noise
-
-            input_var.data = input_var.data - adv_noise
-            changed_img = self.tensor2img(input_var.data.cpu().squeeze())
+            adversarial = attack(image, label=label)
 
 
-            if ssim < self.ssim_thr:
-                break
-            else:
-                attacked_img = changed_img
+        input_var.data = input_var.data - adv_noise
+        changed_img = self.tensor2img(input_var.data.cpu().squeeze())
+
+
+        # if self.get_SSIM(original_img,changed_img) < self.ssim_thr:
+        #     break
+        # else:
+        #     attacked_img = changed_img
         return attacked_img

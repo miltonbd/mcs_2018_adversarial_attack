@@ -10,6 +10,13 @@ img_pairs = pd.read_csv(args['datalist'])
 for idx in tqdm(img_pairs.index.values):
     pair_dict = {'source': img_pairs.loc[idx].source_imgs.split('|'),
                  'target': img_pairs.loc[idx].target_imgs.split('|')}
-    attacker.attack_method=attacker.FGSMAttack
-    attacker.attack(pair_dict)
+    # attacker.attack_method=attacker.foolbox
+    # attacker.attack(pair_dict)
+    from foolbox.criteria import TargetClass
+    from foolbox.attacks import LBFGSAttack
+
+    target_class = 22
+    criterion = TargetClass(target_class)
+    fmodel = foolbox.models.PyTorchModel(self.model, bounds=(0, 255), num_classes=512)
+
 
