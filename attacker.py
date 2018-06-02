@@ -1,52 +1,9 @@
 import os
-import argparse
-import numpy as np
-import pandas as pd
-import torch
-from torch import nn
-from torch.autograd import Variable
-
-import torchvision.transforms as transforms
-from tqdm import tqdm
-from PIL import Image
-from skimage.measure import compare_ssim
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-SSIM_THR = 0.95
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+from attacker_model import *
 
-MEAN = [0.485, 0.456, 0.406]
-STD = [0.229, 0.224, 0.225] 
-
-REVERSE_MEAN = [-0.485, -0.456, -0.406]
-REVERSE_STD = [1/0.229, 1/0.224, 1/0.225]
-
-parser = argparse.ArgumentParser(description='PyTorch student network training')
-
-args = {
-    'root':'../data/imgs/',
-    'save_root':'./baseline1/',
-    'datalist':'../data/pairs_list.csv',
-    'model_name':'DenseNet',
-    'checkpoint_path':'./student_net_learning/checkpoint/DenseNet/best_model_chkpt.t7',
-    'cuda':'0'    
-}
-
-def reverse_normalize(tensor, mean, std):
-    '''reverese normalize to convert tensor -> PIL Image'''
-    tensor_copy = tensor.clone()
-    for t, m, s in zip(tensor_copy, mean, std):
-        t.div_(s).sub_(m)
-    return tensor_copy
-
-def get_model(args, checkpoint_path):
-    from student_net_learning.models.densenet import densenet201
-    print('Loading DenseNet121')
-    net = densenet201(pretrained=True)
-    checkpoint = torch.load(checkpoint_path)
-    net.load_state_dict(checkpoint['net'])
-    return net
-
-class FGSM_Attacker():
+class Attacker():
     '''
     FGSM attacker: https://arxiv.org/pdf/1412.6572.pdf
     model -- white-box model for attack
@@ -54,7 +11,7 @@ class FGSM_Attacker():
     ssim_thr -- min value for ssim compare
     transform -- img to tensor transform without CenterCrop and Scale
     '''
-    def __init__(self, model, eps, ssim_thr, transform, img2tensor, 
+    def __init__(self, model, eps, ssim_thr, transform, img2tensor,
                  args, max_iter=50):
         self.model = model
         self.model.eval()
@@ -69,6 +26,8 @@ class FGSM_Attacker():
         self.img2tensor = img2tensor
         self.args = args
         self.loss = nn.MSELoss()
+        self.target_descriptors=[]
+        self.attack_method=""
 
     def tensor2img(self, tensor, on_cuda=True):
         tensor = reverse_normalize(tensor, REVERSE_MEAN, REVERSE_STD)
@@ -79,16 +38,15 @@ class FGSM_Attacker():
         if on_cuda:
             tensor = tensor.cpu()
         return transforms.ToPILImage()(tensor)
+    
+    def get_SSIM(self, original_img, changed_img ):
+        ssim = compare_ssim(np.array(original_img, dtype=np.float32),
+                            np.array(changed_img, dtype=np.float32),
+                            multichannel=True)
 
     def attack(self, attack_pairs):
-        '''
-        Args:
-            attack_pairs (dict) - id pair, 'source': 5 imgs,
-                                           'target': 5 imgs
-        '''
-        # print(attack_pairs)
         target_img_names = attack_pairs['target']
-        target_descriptors = np.ones((len(attack_pairs['target']), 512), 
+        self.target_descriptors = np.ones((len(attack_pairs['target']), 512),
                                      dtype=np.float32)
 
         for idx, img_name in enumerate(target_img_names):
@@ -99,79 +57,80 @@ class FGSM_Attacker():
                 tensor = tensor.cuda(async=True)
 
             res = self.model(Variable(tensor, requires_grad=False)).data.cpu().numpy().squeeze()
-            target_descriptors[idx] = res
+            self.target_descriptors[idx] = res
 
-        #print ('TEST: target imgs are readed')
         for img_name in attack_pairs['source']:
-            #print ('TEST: attack on image {0}'.format(img_name))
-
             #img is attacked
             if os.path.isfile(os.path.join(self.args["save_root"], img_name)):
                 continue
 
             img = Image.open(os.path.join(self.args["root"], img_name))
             original_img = self.cropping(img)
-            attacked_img = original_img
             tensor = self.transform(img)
             input_var = Variable(tensor.unsqueeze(0).cuda(async=True),
                                  requires_grad=True)
-            #print ('TEST: start iterations')
-            #tick = time.time()
-            for iter_number in tqdm(range(self.max_iter)):
-                adv_noise = torch.zeros((3,112,112))
 
-                adv_noise = adv_noise.cuda(async=True)
-
-                for target_descriptor in target_descriptors:
-                    target_out = Variable(torch.from_numpy(target_descriptor)                                          .unsqueeze(0).cuda(async=True),
-                                 requires_grad=False)
-
-                    input_var.grad = None
-                    out = self.model(input_var)
-                    calc_loss = self.loss(out, target_out)
-                    calc_loss.backward()
-                    noise = self.eps * torch.sign(input_var.grad.data)                                       .squeeze()
-                    adv_noise = adv_noise + noise
-
-                input_var.data = input_var.data - adv_noise
-                changed_img = self.tensor2img(input_var.data.cpu().squeeze())
-
-                #SSIM checking
-                ssim = compare_ssim(np.array(original_img, dtype=np.float32), 
-                                    np.array(changed_img, dtype=np.float32), 
-                                    multichannel=True)
-                if ssim < self.ssim_thr:
-                    break
-                else:
-                    attacked_img = changed_img
-            #tock = time.time()
-            #print ('TEST: end iterations. Time: {0:.2f}sec'.format(tock - tick))
+            attacked_img=self.attack_method(input_var,original_img)
 
             if not os.path.isdir(self.args["save_root"]):
                 os.makedirs(self.args["save_root"])
             attacked_img.save(os.path.join(self.args["save_root"], img_name.replace('.jpg', '.png')))
 
-model = get_model(args, args['checkpoint_path'])
-#print ('TEST: model on cpu')
+    def FGSMAttack(self, input_var, original_img):
+        attacked_img = original_img
+        for iter_number in tqdm(range(self.max_iter)):
+            adv_noise = torch.zeros((3, 112, 112))
 
-model = model.cuda()
-#print ('TEST: model loaded')  
+            adv_noise = adv_noise.cuda(async=True)
 
-transform = transforms.Compose([transforms.CenterCrop(224),transforms.Scale(112),transforms.ToTensor(),
-                                transforms.Normalize(mean=MEAN, std=STD),
-            ])
-img2tensor = transforms.Compose([
-             transforms.ToTensor(),
-             transforms.Normalize(mean=MEAN, std=STD)
-             ])
+            for target_descriptor in self.target_descriptors:
+                target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
+                                      requires_grad=False)
 
-attacker = FGSM_Attacker(model,eps=1e-2,ssim_thr=SSIM_THR, transform=transform,img2tensor=img2tensor,args=args,max_iter=10000)
-#print ('TEST: attacker is created')
-img_pairs = pd.read_csv(args['datalist'])
-#print ('TEST: pairs are readed')
-for idx in tqdm(img_pairs.index.values):
-    pair_dict = {'source': img_pairs.loc[idx].source_imgs.split('|'),
-                 'target': img_pairs.loc[idx].target_imgs.split('|')}
+                input_var.grad = None
+                out = self.model(input_var)
+                calc_loss = self.loss(out, target_out)
+                calc_loss.backward()
+                noise = self.eps * torch.sign(input_var.grad.data).squeeze()
+                adv_noise = adv_noise + noise
 
-    attacker.attack(pair_dict)
+            input_var.data = input_var.data - adv_noise
+            changed_img = self.tensor2img(input_var.data.cpu().squeeze())
 
+            # SSIM checking
+            ssim = compare_ssim(np.array(original_img, dtype=np.float32),
+                                np.array(changed_img, dtype=np.float32),
+                                multichannel=True)
+            if ssim < self.ssim_thr:
+                break
+            else:
+                attacked_img = changed_img
+        return attacked_img
+
+    def IterativeFGSM(self, input_var, original_img):
+        attacked_img = original_img
+        for iter_number in tqdm(range(self.max_iter)):
+            adv_noise = torch.zeros((3, 112, 112))
+
+            adv_noise = adv_noise.cuda(async=True)
+
+            for target_descriptor in self.target_descriptors:
+                target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
+                                      requires_grad=False)
+
+                input_var.grad = None
+                out = self.model(input_var)
+                calc_loss = self.loss(out, target_out)
+                calc_loss.backward()
+                noise = self.eps * torch.sign(input_var.grad.data).squeeze()
+                adv_noise = adv_noise + noise
+
+            input_var.data = input_var.data - adv_noise
+            changed_img = self.tensor2img(input_var.data.cpu().squeeze())
+
+
+            if ssim < self.ssim_thr:
+                break
+            else:
+                attacked_img = changed_img
+        return attacked_img
