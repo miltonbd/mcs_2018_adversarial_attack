@@ -52,6 +52,18 @@ parser.add_argument('--pairs_list',
                      default='../data/pairs_list.csv')
 args = parser.parse_args()
 
+def save_submit_file(img_list, descriptor_path):
+    submit_directory = './submits'
+    if not os.path.isdir(submit_directory):
+        os.makedirs(submit_directory)
+
+    submit_file = os.path.join(submit_directory, args.submit_name + '.zip')
+    with zipfile.ZipFile(submit_file,'w') as myzip:
+        for img_name in tqdm(img_list.path.values,
+                             desc='archive images'):
+            img_path = os.path.join(args.attack_root, img_name)
+            myzip.write(img_path, arcname=img_name)
+        myzip.write(descriptor_path, arcname='descriptors.npy')
 
 def euclid_dist(x,y, axis=1): 
     return np.sqrt(((x - y) ** 2).sum(axis=axis))
@@ -145,17 +157,7 @@ def main(args):
     print ('Validation score: {0:.3f}'.format(score_value))
 
     # Submit zip archive creating
-    submit_directory = './submits'
-    if not os.path.isdir(submit_directory):
-        os.makedirs(submit_directory)
 
-    submit_file = os.path.join(submit_directory, args.submit_name + '.zip')
-    with zipfile.ZipFile(submit_file,'w') as myzip:
-        for img_name in tqdm(img_list.path.values,
-                             desc='archive images'):
-            img_path = os.path.join(args.attack_root, img_name)
-            myzip.write(img_path, arcname=img_name)
-        myzip.write(descriptor_path, arcname='descriptors.npy') 
 
 if __name__ == '__main__':
     main(args)

@@ -440,3 +440,7 @@ def se_resnext101_32x4d(num_classes=1000, pretrained='imagenet'):
         settings = pretrained_settings['se_resnext101_32x4d'][pretrained]
         initialize_pretrained_model(model, num_classes, settings)
     return model
+
+
+def test():
+    net=se_resnext101_32x4d()

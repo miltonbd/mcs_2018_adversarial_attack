@@ -25,7 +25,7 @@ import torchvision.transforms as transforms
 from torch.autograd import Variable
 from PIL import Image
 import PIL
-
+from student_net_learning import model_loader
 from models import *
 from dataset import ImageListDataset
 # from utils import progress_bar
@@ -147,43 +147,7 @@ def main():
 
     print("Training : {}, Validation:{}".format(len(trainloader),len(valloader)))
 
-    # Create model
-    net = None
-    if args.model_name == 'ResNet18':
-        print('Loading ResNet18')
-        net = ResNet18()
-    elif args.model_name == 'ResNet34':
-        print('Loading ResNet34')
-        net = ResNet34()
-    elif args.model_name == 'ResNet50':
-        # print('Loading pnasnet5large')
-        # from student_net_learning.pretrainedmodels.models.pnasnet import pnasnet5large
-        # net = pnasnet5large()
-        # net = dpn131(pretrained=True)
-        print("ResNET152")
-        from classification.models.pytorch.resnet import resnet152
-        net=resnet152(pretrained=True)
-
-    elif args.model_name == 'ResNet152':
-        print("ResNET152")
-        from classification.models.pytorch.resnet import resnet152
-        net = resnet152(pretrained=True)
-
-    elif args.model_name == 'DenseNet':
-        from student_net_learning.models.densenet import densenet201
-        print('Loading DenseNet121')
-        net =  densenet201(pretrained=True)
-    elif args.model_name == 'VGG11':
-        print('Loading VGG11')
-        net = VGG('VGG11')
-    elif args.model_name == 'VGG19_BN':
-        from student_net_learning.pretrainedmodels.models.pnasnet import pnasnet5large
-        print('Loading VGG19_BN')
-        net = pnasnet5large()
-
-    print('==> Building model..')
-
-    if args.resume:
+    try:
         # Load checkpoint
         print('==> Resuming from checkpoint..')
         assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
@@ -191,6 +155,10 @@ def main():
         net.load_state_dict(checkpoint['net'])
         best_loss = checkpoint['loss']
         start_epoch = checkpoint['epoch'] + 1
+
+    except Exception as e:
+        print('==> Building model..')
+        net=model_loader.get_model_net(args)
 
     # Choosing of criterion
     # if args.criterion == 'MSE':

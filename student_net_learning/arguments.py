@@ -43,7 +43,7 @@ parser.add_argument('--cuda',
 parser.add_argument('--model_name',
                     type=str,
                     help='model name',
-                    default='ResNet152')
+                    default='DenseNet')
 parser.add_argument('--down_epoch',
                     type=int,
                     help='epoch number for lr * 1e-1',

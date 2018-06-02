@@ -25,12 +25,12 @@ def build_dataset_lists(list_path,split):
     images = pd.read_csv(im_list, header=None, names=['impath'])
     targets = np.load(at_list).astype(np.float32)
 
-    if split=='train':
-        images = images[:50000]
-        targets = targets[:50000, :]
-    else:
-        images = images[:10000]
-        targets = targets[:10000, :]
+    #if split=='train':
+    #    images = images[:50000]
+    #    targets = targets[:50000, :]
+    #else:
+    #    images = images[:10000]
+    #    targets = targets[:10000, :]
 
 
     return images.impath.values,targets

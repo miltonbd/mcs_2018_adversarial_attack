@@ -225,6 +225,9 @@ class DenseNet(nn.Module):
         out = self.classifier(out)
         return out
 
+    def bounds(self):
+        return (0,1)
+
 
 from torch.autograd import Variable
 import torch
