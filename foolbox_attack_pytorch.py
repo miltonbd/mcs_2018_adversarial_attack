@@ -72,31 +72,27 @@ from foolbox.criteria import TargetClass
 # FGSM
 
 from foolbox.criteria import TargetClass
-import attacks
+from foolbox import attacks
 
 target_class = 22
 criterion = TargetClass(target_class)
-attack = attacks.FGSM(fmodel,criterion)
+attack = attacks.FGSM(fmodel)
 
 
 # In[17]:
 
 
-
+#
 # from foolbox.criteria import TargetClass
 #
 # target_class = 22
 # criterion = TargetClass(target_class)
 # attack=foolbox.attacks.IterativeGradientSignAttack(fmodel, criterion=criterion)
 
-from foolbox.attacks import LBFGSAttack
-attack = LBFGSAttack(model=fmodel, criterion=TargetClass(22))
 
 # In[20]:
 
 import attacker
-
-attacker_model= attacker.Attacker(.95,transform=transforms,img2tensor=img2tensor,args=args)
 
 for idx in tqdm(img_pairs.index.values):
     pair_dict = {'source': img_pairs.loc[idx].source_imgs.split('|'),
@@ -110,9 +106,9 @@ for idx in tqdm(img_pairs.index.values):
 
     label = np.argmax(fmodel.predictions(image))
     adversarial = attack(image, label=label)
-    label_after = np.argmax(fmodel.predictions(adversarial))
-
-    print("\nbefore: {}\n after: {}\n ssim: {}".format(label, label_after, get_ssim(image.transpose((1,2,0)),adversarial.transpose(1,2,0))))
+    label_after = np.asarray(fmodel.predictions(adversarial))
+    print(label_after.shape)
+    # print("\nbefore: {}\n after: {}\n ssim: {}".format(label, label_after, get_ssim(image.transpose((1,2,0)),adversarial.transpose(1,2,0))))
 
     break
 
