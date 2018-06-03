@@ -92,6 +92,8 @@ def main(args):
         org_img = cropping(org_img)
 
         ssim = compare_ssim(np.array(img), np.array(org_img), multichannel=True)
+        if idx%100==0:
+            print(ssim)
         assert ssim >= SSIM_THR, '{0}\n ssim < {1}'.format(img_name,SSIM_THR)
 
         # Creating batch with one element

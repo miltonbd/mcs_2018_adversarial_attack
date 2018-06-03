@@ -11,6 +11,8 @@ args['eps']=16
 args['decay']=0.5
 args['ssim_thr']=SSIM_THR
 args['max_iter']=10000
+args['datalist']='../data/pairs_list2.csv'
+
 attacker = Attacker( transform, img2tensor, args)
 
 img_pairs = pd.read_csv(args['datalist'])

@@ -6,11 +6,14 @@ from attacker_model import *
 from attacker import Attacker
 
 args['cuda']='1'
-args['save_root']='./changed_images_0/'
+args['save_root']='./changed_images_1/'
 args['eps']=16
-args['decay']=0.1
+args['decay']=1
 args['ssim_thr']=SSIM_THR
 args['max_iter']=10000
+args['datalist']='../data/pairs_list1.csv'
+
+
 attacker = Attacker( transform, img2tensor, args)
 
 img_pairs = pd.read_csv(args['datalist'])
