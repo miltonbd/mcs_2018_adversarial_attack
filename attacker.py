@@ -135,38 +135,6 @@ class Attacker():
         print("ssim:{}, iter:{}".format(ssim_final,iter_passed))
         return attacked_img
 
-    def I_FGSMAttack(self, input_var, original_img):
-
-        attacked_img = original_img
-        for iter_number in tqdm(range(self.max_iter)):
-            adv_noise = torch.zeros((3, 112, 112))
-
-            adv_noise = adv_noise.cuda(async=True)
-
-            for target_descriptor in self.target_descriptors:
-                target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
-                                      requires_grad=False)
-
-                input_var.grad = None
-                out = self.model(input_var)
-                calc_loss = self.loss(out, target_out)
-                calc_loss.backward()
-                noise = self.eps * torch.sign(input_var.grad.data).squeeze()
-                adv_noise = adv_noise + noise
-
-            input_var.data = input_var.data - adv_noise
-            changed_img = self.tensor2img(input_var.data.cpu().squeeze())
-
-            # SSIM checking
-            ssim = compare_ssim(np.array(original_img, dtype=np.float32),
-                                np.array(changed_img, dtype=np.float32),
-                                multichannel=True)
-            if ssim < self.ssim_thr:
-                break
-            else:
-                attacked_img = changed_img
-        return attacked_img
-
     def MI_FGSM(self, input_var, original_img):
         eps = self.eps
         decay= self.decay
@@ -335,34 +303,4 @@ class Attacker():
                 attacked_img = changed_img
         print("ssim:{}, iter:{}".format(ssim_final,iter_passed))
         return attacked_img
-
-    def FoolBox(self, input_var, original_img):
-        attacked_img = original_img
-        adv_noise = torch.zeros((3, 112, 112))
-        adv_noise = adv_noise.cuda(async=True)
-
-        for target_descriptor in self.target_descriptors:
-            target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
-                                  requires_grad=False)
-            input_var.grad = None
-            out = self.model(input_var)
-            calc_loss = self.loss(out, target_out)
-            calc_loss.backward()
-            noise = self.eps * torch.sign(input_var.grad.data).squeeze()
-            adv_noise = adv_noise + noise
-
-        input_var.data = input_var.data - adv_noise
-        changed_img = self.tensor2img(input_var.data.cpu().squeeze())
-
-        # SSIM checking
-        ssim = compare_ssim(np.array(original_img, dtype=np.float32),
-                            np.array(changed_img, dtype=np.float32),
-                            multichannel=True)
-        if ssim < self.ssim_thr:
-            print("ssim lower: {}".format(ssim))
-        else:
-            attacked_img = changed_img
-        print("ssim ok:{}".format(ssim))
-        return attacked_img
-
 
