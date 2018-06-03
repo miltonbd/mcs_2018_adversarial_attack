@@ -1,13 +1,14 @@
-from attacker_model import *
-from attacker import Attacker
 import  os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+from attacker_model import *
+from attacker import Attacker
+
 args['save_root']='./changed_images_1/'
 
-
-args['eps']=2
-args['decay']=2
+args['cuda']="1"
+args['eps']=16
+args['decay']=0.5
 args['ssim_thr']=SSIM_THR
 args['max_iter']=10000
 attacker = Attacker( transform, img2tensor, args)

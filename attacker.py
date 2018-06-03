@@ -7,6 +7,9 @@ import scipy
 import attacks
 import imageio
 from attacks import *
+import shutil
+import torch.backends.cudnn as cudnn
+
 
 class Attacker():
     '''
@@ -32,6 +35,9 @@ class Attacker():
         self.target_descriptors=[]
         self.attack_method=""
 
+        if os.path.exists(args['save_root']):
+            shutil.rmtree(args['save_root'])
+
     def tensor2img(self, tensor, on_cuda=True):
         tensor = reverse_normalize(tensor, REVERSE_MEAN, REVERSE_STD)
         # clipping
@@ -54,6 +60,7 @@ class Attacker():
         torchmodel.load_state_dict(checkpoint['net'])
 
         torchmodel.cuda()
+        cudnn.benchmark = True
 
         torchmodel.eval()
         self.model=torchmodel
@@ -150,6 +157,46 @@ class Attacker():
                 grads= decay * grads + curr_grad/curr_grad.abs().sum()
 
                 noise = alpha * torch.sign(grads).squeeze()
+                adv_noise = adv_noise + noise.data
+
+            input_var.data = input_var.data - adv_noise.cuda()
+            changed_img = self.tensor2img(input_var.data.cpu().squeeze())
+
+            # SSIM checking
+            ssim = compare_ssim(np.array(original_img, dtype=np.float32),
+                                np.array(changed_img, dtype=np.float32),
+                                multichannel=True)
+            if ssim < self.ssim_thr:
+                break
+            else:
+                attacked_img = changed_img
+        return attacked_img
+
+    def MI_FGSM_L2(self, input_var, original_img):
+        eps = 2.0 * self.eps / 255.0
+        decay = self.decay
+        alpha = eps / 12
+        attacked_img = original_img
+        grads = 0
+        for iter_number in tqdm(range(self.max_iter)):
+            adv_noise = torch.zeros((3, 112, 112))
+            adv_noise = adv_noise.cuda(async=True)
+
+            for target_descriptor in self.target_descriptors:
+                target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
+                                      requires_grad=False)
+
+                input_var.grad = None
+                self.model.cuda()
+                out = self.model(input_var)
+                calc_loss = self.loss(out, target_out)
+                calc_loss.backward()
+                curr_grad = input_var.grad
+                # if grads==0:
+                #     grads=curr_grad
+                grads = decay * grads + curr_grad / curr_grad.abs().sum()
+
+                noise = alpha * grads.abs().sum()/grads.abs().pow(2).sum()
                 adv_noise = adv_noise + noise.data
 
             input_var.data = input_var.data - adv_noise.cuda()

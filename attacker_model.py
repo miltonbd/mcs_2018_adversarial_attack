@@ -28,8 +28,7 @@ args = {
     'root':'../data/imgs/',
     'datalist':'../data/pairs_list.csv',
     'model_name':'DenseNet',
-    'checkpoint_path':'./student_net_learning/checkpoint/DenseNet/best_model_chkpt.t7',
-    'cuda':'0'
+    'checkpoint_path':'./student_net_learning/checkpoint/DenseNet/best_model_chkpt.t7'
 }
 
 def reverse_normalize(tensor, mean, std):
