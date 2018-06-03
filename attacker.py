@@ -113,7 +113,6 @@ class Attacker():
             for target_descriptor in self.target_descriptors:
                 target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
                                       requires_grad=False)
-
                 input_var.grad = None
                 out = self.model(input_var)
                 calc_loss = self.loss(out, target_out)
@@ -133,7 +132,7 @@ class Attacker():
                 break
             else:
                 attacked_img = changed_img
-        print("ssim:{}, iter:{}".format(ssim,iter_passed))
+        print("ssim:{}, iter:{}".format(ssim_final,iter_passed))
         return attacked_img
 
     def I_FGSMAttack(self, input_var, original_img):
@@ -290,19 +289,21 @@ class Attacker():
 
 
     def DI2_MI_FGSM_L2(self, input_var, original_img):
-        eps = 2.0 * self.eps / 255.0
+        ssim_final=1
+        iter_passed=0
+        eps = self.eps
         decay= self.decay
         alpha=eps/12
         attacked_img = original_img
         grads=0
         for iter_number in tqdm(range(self.max_iter)):
+            iter_passed=iter_number
             adv_noise = torch.zeros((3, 112, 112))
             adv_noise = adv_noise.cuda(async=True)
 
             for target_descriptor in self.target_descriptors:
                 target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
                                       requires_grad=False)
-
                 input_var.grad = None
                 self.model.cuda()
                 out = self.model(input_var)
@@ -312,7 +313,6 @@ class Attacker():
                 # if grads==0:
                 #     grads=curr_grad
                 grads= decay * grads + curr_grad/curr_grad.abs().sum()
-
                 noise = alpha * torch.sign(grads).squeeze()
                 adv_noise = adv_noise + noise.data
 
@@ -323,9 +323,11 @@ class Attacker():
             ssim = compare_ssim(np.array(original_img, dtype=np.float32),
                                 np.array(changed_img, dtype=np.float32),
                                 multichannel=True)
+            ssim_final = ssim
             if ssim < self.ssim_thr:
                 break
             else:
                 attacked_img = changed_img
+        print("ssim:{}, iter:{}".format(ssim_final,iter_passed))
         return attacked_img
 
