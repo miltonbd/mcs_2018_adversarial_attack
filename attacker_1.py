@@ -5,18 +5,19 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 args['save_root']='./changed_images_1/'
 
-attacker = Attacker(model, eps=1e-2, ssim_thr=SSIM_THR, transform=transform, img2tensor=img2tensor, args=args, max_iter=10000)
+
+args['eps']=2
+args['decay']=2
+args['ssim_thr']=SSIM_THR
+args['max_iter']=10000
+attacker = Attacker( transform, img2tensor, args)
+
 img_pairs = pd.read_csv(args['datalist'])
+
 for idx in tqdm(img_pairs.index.values):
     pair_dict = {'source': img_pairs.loc[idx].source_imgs.split('|'),
                  'target': img_pairs.loc[idx].target_imgs.split('|')}
-    # attacker.attack_method=attacker.foolbox
-    # attacker.attack(pair_dict)
-    from foolbox.criteria import TargetClass
-    from foolbox.attacks import LBFGSAttack
-
-    target_class = 22
-    criterion = TargetClass(target_class)
-    fmodel = foolbox.models.PyTorchModel(self.model, bounds=(0, 255), num_classes=512)
+    attacker.attack_method=attacker.MI_FGSM
+    attacker.attack(pair_dict)
 
 

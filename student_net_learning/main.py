@@ -15,15 +15,7 @@ from utils.functions import progress_bar
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 from tensorboardX import SummaryWriter
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import torch.backends.cudnn as cudnn
-import torchvision.transforms as transforms
-from torch.autograd import Variable
-from PIL import Image
+
 import PIL
 from student_net_learning import model_loader
 from models import *

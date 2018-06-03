@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[40]:
+# In[14]:
 
 
 import foolbox
@@ -29,6 +29,19 @@ args = {
     'cuda':'0'
 }
 
+SSIM_THR = 0.95
+
+MEAN = [0.485, 0.456, 0.406]
+STD = [0.229, 0.224, 0.225]
+
+REVERSE_MEAN = [-0.485, -0.456, -0.406]
+REVERSE_STD = [1/0.229, 1/0.224, 1/0.225]
+
+
+img2tensor = transforms.Compose([
+             transforms.ToTensor(),
+             transforms.Normalize(mean=MEAN, std=STD)
+             ])
 pair_imgs_dir='../data/imgs'
 
 torchmodel = densenet201(pretrained=True)
@@ -53,35 +66,37 @@ from foolbox.attacks import LBFGSAttack
 from foolbox.criteria import TargetClass
 
 
-# In[41]:
+# In[18]:
 
 
 # FGSM
 
 from foolbox.criteria import TargetClass
+import attacks
 
 target_class = 22
 criterion = TargetClass(target_class)
-attack = foolbox.attacks.FGSM(fmodel)
+attack = attacks.FGSM(fmodel,criterion)
 
 
-# In[30]:
+# In[17]:
 
 
-#
+
 # from foolbox.criteria import TargetClass
 #
 # target_class = 22
 # criterion = TargetClass(target_class)
 # attack=foolbox.attacks.IterativeGradientSignAttack(fmodel, criterion=criterion)
 
+from foolbox.attacks import LBFGSAttack
+attack = LBFGSAttack(model=fmodel, criterion=TargetClass(22))
 
-# In[ ]:
+# In[20]:
 
+import attacker
 
-
-import warnings
-warnings.filterwarnings("ignore")
+attacker_model= attacker.Attacker(.95,transform=transforms,img2tensor=img2tensor,args=args)
 
 for idx in tqdm(img_pairs.index.values):
     pair_dict = {'source': img_pairs.loc[idx].source_imgs.split('|'),
@@ -103,22 +118,30 @@ for idx in tqdm(img_pairs.index.values):
 
 
 # In[24]:
-
-
-import matplotlib.pyplot as plt
-
-plt.figure()
-
-plt.subplot(1, 3, 1)
-plt.title('Original')
-plt.imshow(image.transpose((1,2,0)))  # division by 255 to convert [0, 255] to [0, 1]
-plt.axis('off')
-
-adversarial1=adversarial.transpose((1,2,0))
-plt.subplot(1, 3, 2)
-plt.title('Adversarial')
-plt.imshow( adversarial1)  # division by 255 to convert [0, 255] to [0, 1]
-plt.axis('off')
-
-plt.show()
-
+#
+#
+# import matplotlib.pyplot as plt
+#
+# plt.figure()
+#
+# plt.subplot(1, 3, 1)
+# plt.title('Original')
+# image1=image.transpose((1,2,0))
+# plt.imshow(image1)  # division by 255 to convert [0, 255] to [0, 1]
+# plt.axis('off')
+#
+# adversarial1=adversarial.transpose((1,2,0))
+# plt.subplot(1, 3, 2)
+# plt.title('Adversarial')
+# plt.imshow( adversarial1)  # division by 255 to convert [0, 255] to [0, 1]
+# plt.axis('off')
+#
+# adversarial1=adversarial.transpose((1,2,0))
+# plt.subplot(1, 3, 3)
+# plt.title('Noise')
+# plt.imshow( (image1-adversarial1)*355)  # division by 255 to convert [0, 255] to [0, 1]
+# plt.axis('off')
+#
+#
+# plt.show()
+#
