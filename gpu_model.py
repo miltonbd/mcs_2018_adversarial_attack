@@ -3,7 +3,7 @@ from attacker import Attacker
 args['save_root']='./changed_images_1/'
 
 args['cuda']="1"
-args['eps']=0.01
+args['eps']=0.0001
 args['decay']=1
 args['ssim_thr']=SSIM_THR
 args['max_iter']=1000
@@ -17,5 +17,5 @@ def start_gpu_thread(part_csv):
     for idx in tqdm(img_pairs.index.values):
         pair_dict = {'source': img_pairs.loc[idx].source_imgs.split('|'),
                      'target': img_pairs.loc[idx].target_imgs.split('|')}
-        attacker.attack_method = attacker.MI_FGSM
+        attacker.attack_method = attacker.DI_MI_FGSM
         attacker.attack(pair_dict)
