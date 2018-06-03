@@ -1,26 +1,11 @@
 import  os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-from attacker_model import *
-from attacker import Attacker
+from gpu_model import start_gpu_thread
 
-args['save_root']='./changed_images_1/'
+from gpu_model import start_gpu_thread
 
-args['cuda']="1"
-args['eps']=16
-args['decay']=0.5
-args['ssim_thr']=SSIM_THR
-args['max_iter']=10000
-args['datalist']='../data/pairs_list2.csv'
+start_gpu_thread('../data/pairs_list2.csv')
 
-attacker = Attacker( transform, img2tensor, args)
-
-img_pairs = pd.read_csv(args['datalist'])
-
-for idx in tqdm(img_pairs.index.values):
-    pair_dict = {'source': img_pairs.loc[idx].source_imgs.split('|'),
-                 'target': img_pairs.loc[idx].target_imgs.split('|')}
-    attacker.attack_method=attacker.MI_FGSM
-    attacker.attack(pair_dict)
 
 

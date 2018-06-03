@@ -1,5 +1,5 @@
 import os
-
+import torch.nn.functional as F
 from attacker_model import *
 import foolbox
 from student_net_learning.models.densenet import densenet201
@@ -10,6 +10,8 @@ from attacks import *
 import shutil
 import torch.backends.cudnn as cudnn
 from torch.nn.functional import dropout
+from tensorboardX import writer
+
 class Attacker():
     '''
     FGSM attacker: https://arxiv.org/pdf/1412.6572.pdf
@@ -64,8 +66,8 @@ class Attacker():
         torchmodel.eval()
         self.model=torchmodel
 
-        fmodel = foolbox.models.PyTorchModel(torchmodel, bounds=(0, 1), num_classes=512)
-        self.fmodel=fmodel
+        # fmodel = foolbox.models.PyTorchModel(torchmodel, bounds=(0, 1), num_classes=512)
+        # self.fmodel=fmodel
         target_img_names = attack_pairs['target']
         self.target_descriptors = np.ones((len(attack_pairs['target']), 512),
                                      dtype=np.float32)
@@ -99,6 +101,42 @@ class Attacker():
             attacked_img.save(os.path.join(self.args['save_root'], img_name.replace('.jpg', '.png')))
 
     def FGSMAttack(self, input_var, original_img):
+        ssim_final=1
+        attacked_img = original_img
+        iter_passed=0
+        for iter_number in range(self.max_iter):
+            iter_passed=iter_number
+            adv_noise = torch.zeros((3, 112, 112))
+
+            adv_noise = adv_noise.cuda(async=True)
+
+            for target_descriptor in self.target_descriptors:
+                target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
+                                      requires_grad=False)
+
+                input_var.grad = None
+                out = self.model(input_var)
+                calc_loss = self.loss(out, target_out)
+                calc_loss.backward()
+                noise = self.eps * torch.sign(input_var.grad.data).squeeze()
+                adv_noise = adv_noise + noise
+
+            input_var.data = input_var.data - adv_noise
+            changed_img = self.tensor2img(input_var.data.cpu().squeeze())
+
+            # SSIM checking
+            ssim = compare_ssim(np.array(original_img, dtype=np.float32),
+                                np.array(changed_img, dtype=np.float32),
+                                multichannel=True)
+            ssim_final = ssim
+            if ssim < self.ssim_thr:
+                break
+            else:
+                attacked_img = changed_img
+        print("ssim:{}, iter:{}".format(ssim,iter_passed))
+        return attacked_img
+
+    def I_FGSMAttack(self, input_var, original_img):
 
         attacked_img = original_img
         for iter_number in tqdm(range(self.max_iter)):
@@ -131,7 +169,7 @@ class Attacker():
         return attacked_img
 
     def MI_FGSM(self, input_var, original_img):
-        eps = 2.0 * self.eps / 255.0
+        eps = self.eps
         decay= self.decay
         alpha=eps/self.max_iter
         attacked_img = original_img
@@ -211,9 +249,10 @@ class Attacker():
         return attacked_img
 
     def DI2_MI_FGSM(self, input_var, original_img):
-        eps = 2.0 * self.eps / 255.0
+        p=.4
+        eps = self.eps
         decay= self.decay
-        alpha=eps/12
+        alpha=2/255
         attacked_img = original_img
         grads=0
         for iter_number in tqdm(range(self.max_iter)):
@@ -227,11 +266,10 @@ class Attacker():
                 input_var.grad = None
                 self.model.cuda()
                 out = self.model(input_var)
-                calc_loss = self.loss(out, target_out)
+                calc_loss= F.cross_entropy(out, target_out)
                 calc_loss.backward()
                 curr_grad=input_var.grad
-                # if grads==0:
-                #     grads=curr_grad
+
                 grads= decay * grads + curr_grad/curr_grad.abs().sum()
 
                 noise = alpha * torch.sign(grads).squeeze()
