@@ -158,7 +158,13 @@ def main(args):
     score_value = dist_all.mean(axis=1).mean(axis=0).mean()
     print ('Validation score: {0:.3f}'.format(score_value))
 
-    # Submit zip archive creating
+    submit_file = os.path.join('./submit', args.submit_name + '.zip')
+    with zipfile.ZipFile(submit_file, 'w') as myzip:
+        for img_name in tqdm(img_list.path.values,
+                             desc='archive images'):
+            img_path = os.path.join(args.attack_root, img_name)
+            myzip.write(img_path, arcname=img_name)
+        myzip.write(descriptor_path, arcname='descriptors.npy')
 
 
 if __name__ == '__main__':

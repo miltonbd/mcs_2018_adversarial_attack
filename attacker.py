@@ -151,7 +151,7 @@ class Attacker():
     #     print("ssim:{}, iter:{}".format(ssim_final,iter_passed))
     #     return attacked_img
 
-    def DI_MI_FGSM(self,source_img_path):
+    def M_DI_2_FGSM(self, source_img_path):
         img = Image.open(source_img_path)
         original_img = self.cropping(img)
 
@@ -165,7 +165,7 @@ class Attacker():
                              requires_grad=True).type(torch.cuda.FloatTensor)
         input_var_clone=input_var.clone()
         eps_init = 0.01
-        decay= .5
+        decay= 1
         attacked_img = original_img
         grads=0
         ssim_final = 1
@@ -183,7 +183,7 @@ class Attacker():
             alpha = eps_init  # todo learning rate decay
             # eps=self.decayEps(eps_init,iter_number,self.max_iter)
             eps=eps_init
-            criterion = torch.nn.BCEWithLogitsLoss()
+            criterion = torch.nn.MSELoss()
             # self.writer.add_scalar('eps for '+source_img_path,eps,iter_number)
             for idx,target_descriptor in enumerate(self.target_descriptors):
                 target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
@@ -199,7 +199,11 @@ class Attacker():
                 curr_grad=input_var.grad
 
                 grads= decay * grads + curr_grad/curr_grad.abs().sum()
-                noise = alpha * torch.sign(grads).squeeze()
+
+                #noise = alpha * torch.sign(grads).squeeze()   # L0 norm
+
+                noise = alpha * grads/grads.abs().pow(2).sum()   # L2 norm
+
                 adv_noise = adv_noise + noise.data
 
                 #self.writer.add_scalar("noise " + source_img_path, noise, iter_number)
@@ -214,11 +218,11 @@ class Attacker():
                                 multichannel=True)
             self.writer.add_scalar("ssim of " + source_img_path, ssim, iter_number)
 
-            self.writer.add_scalar("ssim of " + source_img_path, ssim, iter_number)
+            print("current ssim:{}, iter:{}".format(ssim, iter_passed))
 
             if ssim < self.ssim_thr:
                 if int(ssim_final)==1:
-                    eps/=2
+                    print("\n\n\n\n ssim \n\n\n\n")
                     # input_var.data=input_var_clone.data
                     # input_var.grad=None
                     # continue

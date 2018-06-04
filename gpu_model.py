@@ -17,5 +17,5 @@ def start_gpu_thread(part_csv):
     for idx in tqdm(img_pairs.index.values):
         pair_dict = {'source': img_pairs.loc[idx].source_imgs.split('|'),
                      'target': img_pairs.loc[idx].target_imgs.split('|')}
-        attacker.attack_method = attacker.DI_MI_FGSM
+        attacker.attack_method = attacker.M_DI_2_FGSM
         attacker.attack(pair_dict)
