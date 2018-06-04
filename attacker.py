@@ -11,6 +11,7 @@ import shutil
 import torch.backends.cudnn as cudnn
 from torch.nn.functional import dropout
 from tensorboardX import SummaryWriter
+import torch.nn.functional as F
 
 class Attacker():
     '''
@@ -26,10 +27,8 @@ class Attacker():
             shutil.rmtree(logdir)
         os.makedirs(logdir)
         self.writer= SummaryWriter(logdir)
-        self.eps=args['eps']
         self.ssim_thr = args['ssim_thr']
         self.max_iter = args['max_iter']
-        self.decay=args['decay']
         self.transform = transform
         self.cropping = transforms.Compose([
                                       transforms.CenterCrop(224),
@@ -164,40 +163,43 @@ class Attacker():
         input_var = Variable(tensor.unsqueeze(0).cuda(async=True),
                              requires_grad=True).type(torch.cuda.FloatTensor)
         input_var_clone=input_var.clone()
-        eps_init = 0.01
+        eps = 0.3
         decay= 1
         attacked_img = original_img
         grads=0
         ssim_final = 1
         iter_passed = 0
-        # todo apply l2
-        # todo input augmentation and change them input DI input
-        # todo add drop out
+
+        # todo input augmentation for source images and traget to 20 images each and replace input_var data with augmented data
+        # this way one source image will have 5 augmenetd images and use 20 target images
+        # orginal source image data will be in input_var_clone and later clone wil supply the real data to be reduced from adv noise
+        #
         # todo try other regulerizer
-        # todo
+
+        alpha = eps  # todo learning rate decay
 
         for iter_number in range(self.max_iter):
             iter_passed=iter_number
             adv_noise = torch.zeros((3, 112, 112))
             adv_noise = adv_noise.cuda(async=True)
-            alpha = eps_init  # todo learning rate decay
             # eps=self.decayEps(eps_init,iter_number,self.max_iter)
-            eps=eps_init
             criterion = torch.nn.MSELoss()
+            # todo other loss functions  criterion = torch.nn.MSELoss()
+
             # self.writer.add_scalar('eps for '+source_img_path,eps,iter_number)
             for idx,target_descriptor in enumerate(self.target_descriptors):
                 target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
                                       requires_grad=False)
-
                 input_var.grad = None
                 self.model.cuda()
                 out = self.model(input_var)
 
-                loss =  criterion(out, target_out)
+                loss =  criterion(F.dropout(out, .2), target_out)
                 self.writer.add_scalar("loss of " + source_img_path, loss, iter_number * idx + idx)
                 loss.backward()
                 curr_grad=input_var.grad
 
+                #todo  use adam style optimization method
                 grads= decay * grads + curr_grad/curr_grad.abs().sum()
 
                 #noise = alpha * torch.sign(grads).squeeze()   # L0 norm
@@ -218,146 +220,19 @@ class Attacker():
                                 multichannel=True)
             self.writer.add_scalar("ssim of " + source_img_path, ssim, iter_number)
 
-            print("current ssim:{}, iter:{}".format(ssim, iter_passed))
+            # if iter_number%5==0:
+            #     print("current ssim:{}, iter:{}".format(ssim, iter_number))
 
             if ssim < self.ssim_thr:
-                if int(ssim_final)==1:
-                    print("\n\n\n\n ssim \n\n\n\n")
-                    # input_var.data=input_var_clone.data
-                    # input_var.grad=None
-                    # continue
+                if int(ssim_final)==1: #or iter_number< 5: # minimum 5 iterations will be accepted
+                    print(" ssim 1 error for {}".format(source_img_path))
+                    alpha/=2
+                    input_var.data=input_var_clone.data
+                    input_var.grad = None
+                    continue
                 break
             else:
                 attacked_img = changed_img
             ssim_final=ssim
-        print("final ssim:{}, iter:{}".format(ssim_final,iter_passed))
+        print("final ssim:{}, iter:{}, {}".format(ssim_final,iter_passed,source_img_path))
         return attacked_img
-
-    # def MI_FGSM_L2(self, input_var, original_img):
-    #     eps = self.eps
-    #     decay = self.decay
-    #     alpha = eps / 12
-    #     attacked_img = original_img
-    #     grads = 0
-    #     ssim_final = 1
-    #     iter_passed = 0
-    #     for iter_number in range(self.max_iter):
-    #         adv_noise = torch.zeros((3, 112, 112))
-    #         adv_noise = adv_noise.cuda(async=True)
-    #
-    #         for target_descriptor in self.target_descriptors:
-    #             target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
-    #                                   requires_grad=False)
-    #
-    #             input_var.grad = None
-    #             self.model.cuda()
-    #             out = self.model(input_var)
-    #             calc_loss = self.loss(out, target_out)
-    #             calc_loss.backward()
-    #             curr_grad = input_var.grad
-    #             # if grads==0:
-    #             #     grads=curr_grad
-    #             grads = decay * grads + curr_grad / curr_grad.abs().sum()
-    #
-    #             noise = alpha * grads.abs().sum()/grads.abs().pow(2).sum()
-    #             adv_noise = adv_noise + noise.data
-    #
-    #         input_var.data = input_var.data - adv_noise.cuda()
-    #         changed_img = self.tensor2img(input_var.data.cpu().squeeze())
-    #
-    #         # SSIM checking
-    #         ssim = compare_ssim(np.array(original_img, dtype=np.float32),
-    #                             np.array(changed_img, dtype=np.float32),
-    #                             multichannel=True)
-    #         if ssim < self.ssim_thr:
-    #             break
-    #         else:
-    #             attacked_img = changed_img
-    #     print("final ssim:{}, iter:{}".format(ssim_final,iter_passed))
-    #     return attacked_img
-    #
-    # def DI2_MI_FGSM(self, input_var, original_img):
-    #     p=.4
-    #     eps = self.eps
-    #     decay= self.decay
-    #     alpha=2/255
-    #     attacked_img = original_img
-    #     grads=0
-    #     for iter_number in tqdm(range(self.max_iter)):
-    #         adv_noise = torch.zeros((3, 112, 112))
-    #         adv_noise = adv_noise.cuda(async=True)
-    #
-    #         for target_descriptor in self.target_descriptors:
-    #             target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
-    #                                   requires_grad=False)
-    #
-    #             input_var.grad = None
-    #             self.model.cuda()
-    #             out = self.model(input_var)
-    #             calc_loss= F.cross_entropy(out, target_out)
-    #             calc_loss.backward()
-    #             curr_grad=input_var.grad
-    #
-    #             grads= decay * grads + curr_grad/curr_grad.abs().sum()
-    #
-    #             noise = alpha * torch.sign(grads).squeeze()
-    #             adv_noise = adv_noise + noise.data
-    #
-    #         input_var.data = input_var.data - adv_noise.cuda()
-    #         changed_img = self.tensor2img(input_var.data.cpu().squeeze())
-    #
-    #         # SSIM checking
-    #         ssim = compare_ssim(np.array(original_img, dtype=np.float32),
-    #                             np.array(changed_img, dtype=np.float32),
-    #                             multichannel=True)
-    #         if ssim < self.ssim_thr:
-    #             break
-    #         else:
-    #             attacked_img = changed_img
-    #     return attacked_img
-    #
-    #
-    # def DI2_MI_FGSM_L2(self, input_var, original_img):
-    #     ssim_final=1
-    #     iter_passed=0
-    #     eps = self.eps
-    #     decay= self.decay
-    #     alpha=eps/12
-    #     attacked_img = original_img
-    #     grads=0
-    #     for iter_number in tqdm(range(self.max_iter)):
-    #         iter_passed=iter_number
-    #         adv_noise = torch.zeros((3, 112, 112))
-    #         adv_noise = adv_noise.cuda(async=True)
-    #
-    #         for target_descriptor in self.target_descriptors:
-    #             target_out = Variable(torch.from_numpy(target_descriptor).unsqueeze(0).cuda(async=True),
-    #                                   requires_grad=False)
-    #             input_var.grad = None
-    #             self.model.cuda()
-    #             out = self.model(input_var)
-    #             calc_loss = self.loss(out, target_out)
-    #             calc_loss.backward()
-    #             curr_grad=input_var.grad
-    #             # if grads==0:
-    #             #     grads=curr_grad
-    #             grads= decay * grads + curr_grad/curr_grad.abs().sum()
-    #             noise = alpha * torch.sign(grads).squeeze()
-    #             adv_noise = adv_noise + noise.data
-    #
-    #         input_var.data = input_var.data - adv_noise.cuda()
-    #         changed_img = self.tensor2img(input_var.data.cpu().squeeze())
-    #
-    #         # SSIM checking
-    #         ssim = compare_ssim(np.array(original_img, dtype=np.float32),
-    #                             np.array(changed_img, dtype=np.float32),
-    #                             multichannel=True)
-    #         ssim_final = ssim
-    #         if ssim < self.ssim_thr:
-    #             break
-    #         else:
-    #             attacked_img = changed_img
-    #     print("ssim:{}, iter:{}".format(ssim_final,iter_passed))
-    #     return attacked_img
-
-#

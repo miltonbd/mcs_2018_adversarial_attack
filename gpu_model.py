@@ -3,10 +3,8 @@ from attacker import Attacker
 args['save_root']='./changed_images_1/'
 
 args['cuda']="1"
-args['eps']=0.0001
-args['decay']=1
 args['ssim_thr']=SSIM_THR
-args['max_iter']=1000
+args['max_iter']=50
 
 
 def start_gpu_thread(part_csv):
