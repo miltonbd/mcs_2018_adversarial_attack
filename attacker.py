@@ -21,11 +21,7 @@ class Attacker():
     transform -- img to tensor transform without CenterCrop and Scale
     '''
     def __init__(self, transform, img2tensor,args):
-        logdir = './logs'
-        if  os.path.exists(logdir):
-            shutil.rmtree(logdir)
-        os.makedirs(logdir)
-        self.writer= SummaryWriter(logdir)
+        self.writer= SummaryWriter(args['logdir'])
         self.eps=args['eps']
         self.ssim_thr = args['ssim_thr']
         self.max_iter = args['max_iter']
@@ -41,8 +37,7 @@ class Attacker():
         self.target_descriptors=[]
         self.attack_method=""
 
-        if os.path.exists(args['save_root']):
-            shutil.rmtree(args['save_root'])
+
 
     def tensor2img(self, tensor, on_cuda=True):
         tensor = reverse_normalize(tensor, REVERSE_MEAN, REVERSE_STD)
@@ -101,6 +96,7 @@ class Attacker():
             if not os.path.isdir(self.args['save_root']):
                 os.makedirs(self.args['save_root'])
             attacked_img.save(os.path.join(self.args['save_root'], img_name.replace('.jpg', '.png')))
+        exit(1)
 
 
     def M_DI_2_FGSM(self, source_img_path):
