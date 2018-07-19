@@ -63,7 +63,9 @@ class ImageListDataset(data.Dataset):
         """
         path = self.images[index]
         target = self.targets[index]
-        img =Image.open(path)
+        img =path.split('/')[-1]
+        path=os.path.join('/media/milton/ssd1/research/competitions/data/student_model_imgs/',img)
+        img=Image.open(path)
         if self.transform is not None:
             img = self.transform(img)
         return img, target

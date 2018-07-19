@@ -7,8 +7,6 @@ import sys
 sys.path.append('/media/milton/ssd1/research/ai-artist')
 from utils.functions import progress_bar
 
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 from tensorboardX import SummaryWriter
 import numpy as np
 import torch
@@ -60,7 +58,7 @@ print('==> Preparing data..')
 
 def get_data(args):
     trainset = ImageListDataset(root=args.root,
-                                list_path=args.datalist,
+                                list_path='/media/milton/ssd1/research/competitions/data/datalist/',
                                 split='train',
                                 transform=transform_train)
 
@@ -71,7 +69,7 @@ def get_data(args):
                                               pin_memory=True)
 
     valset = ImageListDataset(root=args.root,
-                              list_path=args.datalist,
+                              list_path='/media/milton/ssd1/research/competitions/data/datalist/',
                               split='val',
                               transform=transform_val)
 

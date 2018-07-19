@@ -5,7 +5,7 @@ from gpu_model import start_gpu_thread
 
 from gpu_model import start_gpu_thread
 
-start_gpu_thread('../data/pairs_list2.csv')
+start_gpu_thread('../data/pairs_list1.csv','./logs/1')
 
 
 

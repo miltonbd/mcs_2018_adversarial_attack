@@ -20,7 +20,7 @@ parser.add_argument('--root',
                     type=str,
                     help='data root path')
 parser.add_argument('--datalist',
-                    default='../data/datalist/',
+                    default='/../../data/datalist/',
                     type=str,
                     help='datalist path')
 parser.add_argument('--batch_size',

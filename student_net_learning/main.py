@@ -12,8 +12,8 @@ import sys
 sys.path.append('/media/milton/ssd1/research/ai-artist')
 from utils.functions import progress_bar
 
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 from tensorboardX import SummaryWriter
 
 import PIL
@@ -52,6 +52,7 @@ def train(epoch):
     train_loss = 0
     total = 0
     total_count=len(trainloader)
+    criterion.cuda()
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs, targets.squeeze()
         adjust_learning_rate(optimizer, epoch, args)
@@ -59,8 +60,8 @@ def train(epoch):
             inputs, targets = inputs.type(torch.FloatTensor).cuda(async=True), targets.type(torch.FloatTensor).cuda(async=True)
 
         optimizer.zero_grad()
-        inputs = Variable(inputs, requires_grad=True)
-        targets = Variable(targets, requires_grad=False)
+        inputs = Variable(inputs, requires_grad=True).cuda()
+        targets = Variable(targets, requires_grad=False).cuda()
 
         outputs = net(inputs)
 
@@ -151,7 +152,8 @@ def main():
     except Exception as e:
         print('==> Building model..')
         net=model_loader.get_model_net(args)
-
+    net = net.cuda()
+    net = torch.nn.DataParallel(net)
     # Choosing of criterion
     # if args.criterion == 'MSE':
     criterion = nn.BCEWithLogitsLoss()
@@ -195,7 +197,7 @@ def main():
         ct-=1
 
     print('==> Model')
-    summary(net, (3, 112, 112))
+    # summary(net, (3, 112, 112))
 
     # Choosing of optimizer
     if args.optimizer == 'adam':

@@ -16,7 +16,7 @@ import MCS2018
 from torchvision import transforms
 
 #import MCS2018_CPU as MCS2018 if you are using only CPU black-box model
-
+import shutil
 SSIM_THR = 0.95
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
@@ -82,6 +82,7 @@ def main(args):
                                 transforms.Normalize(mean=MEAN, std=STD)
                                 ])
     # SSIM checking
+    error=False
     for idx, img_name in tqdm(enumerate(img_list.path.values),
                               total=len(img_list.path.values),
                               desc='SSIM'):
@@ -94,7 +95,12 @@ def main(args):
         ssim = compare_ssim(np.array(img), np.array(org_img), multichannel=True)
         if idx%100==0:
             print(ssim)
-        assert ssim >= SSIM_THR, '{0}\n ssim < {1}'.format(img_name,SSIM_THR)
+        if ssim < SSIM_THR:
+            error=True
+            os.remove(os.path.join(args.attack_root, img_name))
+            continue
+
+        # assert ssim >= SSIM_THR, '{0}\n ssim < {1}'.format(img_name,SSIM_THR)
 
         # Creating batch with one element
         batch_from_one_img = np.array(cropped_img_preprocessing(img).unsqueeze(0),
@@ -103,7 +109,7 @@ def main(args):
         # Getting batch result from black-box
         res = net.submit(batch_from_one_img).squeeze()
         descriptors[idx] = res
-
+    assert error==False
     # Saving descriptors for submit
     descriptor_path = os.path.join(args.attack_root, 'descriptors.npy')
     np.save(descriptor_path, descriptors)
